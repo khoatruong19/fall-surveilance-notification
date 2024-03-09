@@ -9,6 +9,6 @@
     "resolveJsonModule": true,
     "outDir": "./build"
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "schema/schema.ts"],
   "exclude": ["node_modules"]
 }

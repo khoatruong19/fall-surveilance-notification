@@ -1,0 +1,42 @@
+{
+  "version": "5",
+  "dialect": "pg",
+  "id": "bb730b1c-a00e-403e-af8c-acf6437b906d",
+  "prevId": "cfce3b4f-a44c-4519-8a41-5117fa279d4b",
+  "tables": {
+    "user_devices": {
+      "name": "user_devices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(256)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device_token": {
+          "name": "device_token",
+          "type": "varchar(256)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {}
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  }
+}
