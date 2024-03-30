@@ -3,8 +3,10 @@ import { admin } from "./utils/firebase";
 import * as dotenv from "dotenv";
 import { config } from './utils/config';
 import { getAllUserDevices, getUserDevice } from "./db/queries";
-import { AddUserDeviceBody, PushNotificationBody, addUserDeviceSchema, pushNotificationSchema } from "./utils/inputSchema";
+import { AddUserDeviceBody, AppPushNotificationBody, addUserDeviceSchema, appPushNotificationSchema } from "./utils/inputSchema";
 import { insertUserDevice } from "./db/mutations";
+import { MessagingPayload } from "firebase-admin/lib/messaging/messaging-api";
+import { NotificationCode, buildMessagePayload } from "./utils/message";
 
 dotenv.config();
 
@@ -14,12 +16,12 @@ app.get("/", async () => {
   return "Server is running OK!";
 });
 
-app.post('/user-devices', {schema: addUserDeviceSchema}, async (request: FastifyRequest<{
+app.post('/register-token', {schema: addUserDeviceSchema}, async (request: FastifyRequest<{
   Body: AddUserDeviceBody
 }>, reply: FastifyReply) => {
-  const { userId, deviceToken} = request.body
+  const { userId, token} = request.body
 
-  const existingUserDevice = await getUserDevice(userId, deviceToken)
+  const existingUserDevice = await getUserDevice(userId, token)
   if(existingUserDevice) return reply.status(400).send({
     code: 400,
     message: "User with this device is existed!"
@@ -33,7 +35,7 @@ app.post('/user-devices', {schema: addUserDeviceSchema}, async (request: Fastify
 
   return reply.status(201).send({
     code: 201,
-    message: "User device added",
+    message: "Token registered successfully!",
     data: newUserDevice
   })
 })
@@ -52,28 +54,20 @@ app.get('/user-devices/:userId', async (request: FastifyRequest<{
   })
 })
 
-app.post("/push-notification", {schema: pushNotificationSchema},async (request: FastifyRequest<{
- Body: PushNotificationBody
+app.post("/app-notify", {schema: appPushNotificationSchema},async (request: FastifyRequest<{
+ Body: AppPushNotificationBody
 }>, reply: FastifyReply) => {
   const messaging = admin.messaging();
 
-  const { receiverId, title = "", description = "" } = request.body
+  const { receiverIDs, eventCode, meta } = request.body
 
-  const userDevices = await getAllUserDevices(receiverId)
-  if(!userDevices.length) return reply.status(400).send({
-    code: 400,
-    message: "Receiver has no devices",
-  })
-
-  const payload = {
-    notification: {
-      title,
-      body: description,
-    },
-  };
-
+  const payload: MessagingPayload = buildMessagePayload(eventCode as NotificationCode, meta)
   try {
-    await Promise.all(userDevices.map(item => messaging.sendToDevice(item.deviceToken!, payload)))
+    await Promise.all(receiverIDs.map(async id => {
+      const userDevices = await getAllUserDevices(id);
+
+      return Promise.all(userDevices.map(async item => messaging.sendToDevice(item.deviceToken!, payload)));
+  }));
   } catch (error) {
     return reply.status(500).send({
       code: 500,
