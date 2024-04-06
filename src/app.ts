@@ -13,14 +13,14 @@ dotenv.config();
 const app = fastify();
 
 app.get("/", async () => {
-  return "Server is running OK!";
+  return "Server is running OK v3!";
 });
 
 app.post('/register-token', {schema: addUserDeviceSchema}, async (request: FastifyRequest<{
   Body: AddUserDeviceBody
 }>, reply: FastifyReply) => {
   const { userId, token} = request.body
-
+  console.log({userId, token})
   const existingUserDevice = await getUserDevice(userId, token)
   if(existingUserDevice) return reply.status(400).send({
     code: 400,
