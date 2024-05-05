@@ -35,7 +35,7 @@ dotenv.config();
 const app = fastify();
 
 app.get("/", async () => {
-  return "Server is running OK v3!";
+  return "Server is running OK v4!";
 });
 
 app.post(
