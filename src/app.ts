@@ -2,16 +2,33 @@ import fastify, { FastifyReply, FastifyRequest } from "fastify";
 import { admin } from "./utils/firebase";
 import * as dotenv from "dotenv";
 import { config } from "./utils/config";
-import { getAllUserDevices, getUserDevice } from "./db/queries";
 import {
+  getAllUserDevices,
+  getDeviceByDeviceId,
+  getDeviceId,
+  getUserDevice,
+} from "./db/queries";
+import {
+  AddJetsonDeviceBody,
   AddUserDeviceBody,
   AppPushNotificationBody,
+  FallPushNotificationBody,
+  addJetsonDeviceSchema,
   addUserDeviceSchema,
   appPushNotificationSchema,
+  fallPushNotificationSchema,
 } from "./utils/inputSchema";
-import { insertUserDevice } from "./db/mutations";
+import {
+  deleteJetsonDevice,
+  insertJetsonDevice,
+  insertUserDevice,
+} from "./db/mutations";
 import { MessagingPayload } from "firebase-admin/lib/messaging/messaging-api";
-import { NotificationCode, buildMessagePayload } from "./utils/message";
+import {
+  NotificationCode,
+  buildFallMessagePayload,
+  buildMessagePayload,
+} from "./utils/message";
 
 dotenv.config();
 
@@ -113,6 +130,130 @@ app.post(
     return reply.send({
       code: 200,
       message: "Push notification successfully!",
+    });
+  }
+);
+
+app.post(
+  "/fall-notify",
+  { schema: fallPushNotificationSchema },
+  async (
+    request: FastifyRequest<{
+      Body: FallPushNotificationBody;
+    }>,
+    reply: FastifyReply
+  ) => {
+    const messaging = admin.messaging();
+
+    const { receiverIDs, meta } = request.body;
+
+    const payload = await buildFallMessagePayload(meta);
+    if (!payload) {
+      return reply.status(500).send({
+        code: 500,
+        message: "Can't build message payload!",
+      });
+    }
+
+    try {
+      await Promise.all(
+        receiverIDs.map(async (id) => {
+          const userDevices = await getAllUserDevices(id);
+
+          return Promise.all(
+            userDevices.map(async (item) =>
+              messaging.sendToDevice(item.deviceToken!, payload)
+            )
+          );
+        })
+      );
+    } catch (error) {
+      return reply.status(500).send({
+        code: 500,
+        message: "Server errors!",
+      });
+    }
+
+    return reply.send({
+      code: 200,
+      message: "Push notification successfully!",
+    });
+  }
+);
+
+app.post(
+  "/jetson-devices",
+  { schema: addJetsonDeviceSchema },
+  async (
+    request: FastifyRequest<{
+      Body: AddJetsonDeviceBody;
+    }>,
+    reply: FastifyReply
+  ) => {
+    const { deviceId, deviceSerial } = request.body;
+
+    const existingDeviceId = await getDeviceId(deviceSerial);
+    if (existingDeviceId) {
+      return reply.status(400).send({
+        code: 400,
+        message: "Device existed with this device SERIAL",
+      });
+    }
+
+    const existingDeviceSerial = await getDeviceByDeviceId(deviceId);
+    if (existingDeviceSerial) {
+      return reply.status(400).send({
+        code: 400,
+        message: "Device existed with this device ID",
+      });
+    }
+
+    const insertedDevice = await insertJetsonDevice(request.body);
+    if (!insertedDevice)
+      return reply.status(500).send({
+        code: 500,
+        message: "Server errors!",
+      });
+
+    return reply.send({
+      code: 200,
+      message: "Device added successfully!",
+      data: {
+        ...insertedDevice,
+      },
+    });
+  }
+);
+
+app.delete(
+  "/jetson-devices/:id",
+  async (
+    request: FastifyRequest<{
+      Params: {
+        id: string;
+      };
+    }>,
+    reply: FastifyReply
+  ) => {
+    const deviceId = request.params.id;
+
+    const foundDevice = await getDeviceByDeviceId(deviceId);
+    if (!foundDevice)
+      return reply.status(400).send({
+        code: 400,
+        message: "Device not found!",
+      });
+
+    const isDeleted = await deleteJetsonDevice(deviceId);
+    if (!isDeleted)
+      return reply.status(500).send({
+        code: 500,
+        message: "Can't delete device!",
+      });
+
+    return reply.send({
+      code: 200,
+      message: "Device deleted successfully!",
     });
   }
 );
