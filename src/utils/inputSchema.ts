@@ -28,12 +28,8 @@ export const fallPushNotificationSchema = {
   tags: ["fall_push_notification"],
   description: "Fall push notification",
   body: Type.Object({
-    receiverIDs: Type.Array(Type.String()),
-    meta: Type.Object({
-      houseName: Type.String({ minLength: 1 }),
-      roomName: Type.String({ minLength: 1 }),
-      deviceSerial: Type.String({ minLength: 1 }),
-    }),
+    image: Type.Any(),
+    deviceSerial: Type.String({ minLength: 1 }),
   }),
 };
 

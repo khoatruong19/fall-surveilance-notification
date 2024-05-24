@@ -15,19 +15,3 @@ export async function getUserDevice(userId: string, deviceToken: string) {
 
   return userDevice;
 }
-
-export async function getDeviceId(deviceSerial: string) {
-  const jetsonDevice = await db.query.jetson_devices.findFirst({
-    where: (item, { eq }) => eq(item.deviceSerial, deviceSerial),
-  });
-
-  return jetsonDevice?.deviceId ?? "";
-}
-
-export async function getDeviceByDeviceId(deviceId: string) {
-  const jetsonDevice = await db.query.jetson_devices.findFirst({
-    where: (item, { eq }) => eq(item.deviceId, deviceId),
-  });
-
-  return jetsonDevice?.deviceId ?? "";
-}

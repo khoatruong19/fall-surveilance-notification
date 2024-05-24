@@ -16,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@fastify/multipart": "^8.2.0",
     "@sinclair/typebox": "^0.32.15",
     "@supabase/supabase-js": "^2.39.7",
     "dotenv": "^16.4.5",

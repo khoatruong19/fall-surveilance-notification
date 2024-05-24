@@ -1,41 +1,35 @@
-import fastify, { FastifyReply, FastifyRequest } from "fastify";
-import { admin } from "./utils/firebase";
+import multipart from "@fastify/multipart";
 import * as dotenv from "dotenv";
+import fastify, { FastifyReply, FastifyRequest } from "fastify";
+import { MessagingPayload } from "firebase-admin/lib/messaging/messaging-api";
+import { insertUserDevice } from "./db/mutations";
+import { getAllUserDevices, getUserDevice } from "./db/queries";
+import API from "./utils/api";
 import { config } from "./utils/config";
+import { admin } from "./utils/firebase";
 import {
-  getAllUserDevices,
-  getDeviceByDeviceId,
-  getDeviceId,
-  getUserDevice,
-} from "./db/queries";
-import {
-  AddJetsonDeviceBody,
   AddUserDeviceBody,
   AppPushNotificationBody,
   FallPushNotificationBody,
-  addJetsonDeviceSchema,
   addUserDeviceSchema,
   appPushNotificationSchema,
   fallPushNotificationSchema,
 } from "./utils/inputSchema";
 import {
-  deleteJetsonDevice,
-  insertJetsonDevice,
-  insertUserDevice,
-} from "./db/mutations";
-import { MessagingPayload } from "firebase-admin/lib/messaging/messaging-api";
-import {
   NotificationCode,
   buildFallMessagePayload,
   buildMessagePayload,
 } from "./utils/message";
+import Cloudinary from "./utils/cloudinary";
 
 dotenv.config();
 
 const app = fastify();
 
+app.register(multipart, { attachFieldsToBody: "keyValues" });
+
 app.get("/", async () => {
-  return "Server is running OK v4!";
+  return "Server is running OK v5!";
 });
 
 app.post(
@@ -145,9 +139,34 @@ app.post(
   ) => {
     const messaging = admin.messaging();
 
-    const { receiverIDs, meta } = request.body;
+    const { deviceSerial, image } = request.body;
 
-    const payload = await buildFallMessagePayload(meta);
+    const data = await API.getDeviceBySerial(deviceSerial);
+    if (!data) {
+      return reply.status(400).send({
+        code: 400,
+        message: "Can't get device by this serial number!",
+      });
+    }
+
+    const uploadedImage = await Cloudinary.uploadImage(image as Blob);
+    if (!uploadedImage) {
+      return reply.status(400).send({
+        code: 400,
+        message: "Can't upload image!",
+      });
+    }
+
+    const {
+      data: { device, room, members },
+    } = data;
+
+    const payload = await buildFallMessagePayload({
+      deviceId: device.id,
+      houseName: `${room.house}`,
+      roomName: room.name,
+      image: uploadedImage.secure_url,
+    });
     if (!payload) {
       return reply.status(500).send({
         code: 500,
@@ -155,9 +174,10 @@ app.post(
       });
     }
 
+    const receiverIDs = members.map((member: { id: string }) => member.id);
     try {
       await Promise.all(
-        receiverIDs.map(async (id) => {
+        receiverIDs.map(async (id: string) => {
           const userDevices = await getAllUserDevices(id);
 
           return Promise.all(
@@ -177,83 +197,6 @@ app.post(
     return reply.send({
       code: 200,
       message: "Push notification successfully!",
-    });
-  }
-);
-
-app.post(
-  "/jetson-devices",
-  { schema: addJetsonDeviceSchema },
-  async (
-    request: FastifyRequest<{
-      Body: AddJetsonDeviceBody;
-    }>,
-    reply: FastifyReply
-  ) => {
-    const { deviceId, deviceSerial } = request.body;
-
-    const existingDeviceId = await getDeviceId(deviceSerial);
-    if (existingDeviceId) {
-      return reply.status(400).send({
-        code: 400,
-        message: "Device existed with this device SERIAL",
-      });
-    }
-
-    const existingDeviceSerial = await getDeviceByDeviceId(deviceId);
-    if (existingDeviceSerial) {
-      return reply.status(400).send({
-        code: 400,
-        message: "Device existed with this device ID",
-      });
-    }
-
-    const insertedDevice = await insertJetsonDevice(request.body);
-    if (!insertedDevice)
-      return reply.status(500).send({
-        code: 500,
-        message: "Server errors!",
-      });
-
-    return reply.send({
-      code: 200,
-      message: "Device added successfully!",
-      data: {
-        ...insertedDevice,
-      },
-    });
-  }
-);
-
-app.delete(
-  "/jetson-devices/:id",
-  async (
-    request: FastifyRequest<{
-      Params: {
-        id: string;
-      };
-    }>,
-    reply: FastifyReply
-  ) => {
-    const deviceId = request.params.id;
-
-    const foundDevice = await getDeviceByDeviceId(deviceId);
-    if (!foundDevice)
-      return reply.status(400).send({
-        code: 400,
-        message: "Device not found!",
-      });
-
-    const isDeleted = await deleteJetsonDevice(deviceId);
-    if (!isDeleted)
-      return reply.status(500).send({
-        code: 500,
-        message: "Can't delete device!",
-      });
-
-    return reply.send({
-      code: 200,
-      message: "Device deleted successfully!",
     });
   }
 );

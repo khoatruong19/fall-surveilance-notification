@@ -1,9 +1,5 @@
 import { MessagingPayload } from "firebase-admin/lib/messaging/messaging-api";
-import {
-  AppPushNotificationBody,
-  FallPushNotificationBody,
-} from "./inputSchema";
-import { getDeviceId } from "../db/queries";
+import { AppPushNotificationBody } from "./inputSchema";
 
 const NOTIFICATION_MESSAGE = {
   INVITED_TO_HOUSE: {
@@ -55,12 +51,15 @@ export const buildMessagePayload = (
 };
 
 export const buildFallMessagePayload = async ({
-  deviceSerial,
+  deviceId,
+  image,
   ...rest
-}: FallPushNotificationBody["meta"]): Promise<MessagingPayload | null> => {
-  const deviceId = await getDeviceId(deviceSerial);
-  if (!deviceId) return null;
-
+}: {
+  deviceId: string;
+  houseName: string;
+  roomName: string;
+  image: string;
+}): Promise<MessagingPayload | null> => {
   const fallMessage = buildFallMessage(rest);
   const messagePayload: MessagingPayload = {
     notification: {
@@ -69,8 +68,7 @@ export const buildFallMessagePayload = async ({
       icon: deviceId,
     },
     data: {
-      image:
-        "https://media.istockphoto.com/id/1200411318/vector/isolated-slippery-surface-common-hazards-symbols-on-yellow-round-triangle-board-warning-sign.jpg?s=612x612&w=0&k=20&c=glWpQrWDGSm_1OfWAXBMSntY5WTwHXz1loBQG4jgiH8=",
+      image,
     },
   };
 
